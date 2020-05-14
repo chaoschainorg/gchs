@@ -229,6 +229,9 @@ func (b *bridge) readPinAndReopenWallet(call jsre.Call) (goja.Value, error) {
 // original RPC method (saved in jeth.unlockAccount) with it to actually execute
 // the RPC call.
 func (b *bridge) UnlockAccount(call jsre.Call) (goja.Value, error) {
+	if len(call.Arguments) < 1 {
+		return nil, fmt.Errorf("usage: unlockAccount(account, [ password, duration ])")
+	}
 	// Make sure we have an account specified to unlock.
 	if call.Argument(0).ExportType().Kind() != reflect.String {
 		return nil, fmt.Errorf("first argument must be the account to unlock")
