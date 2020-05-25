@@ -1575,7 +1575,7 @@ func SetDNSDiscoveryDefaults(cfg *eth.Config, genesis common.Hash) {
 		return // already set through flags/config
 	}
 
-	protocol := "eth"
+	protocol := "all"
 	if cfg.SyncMode == downloader.LightSync {
 		protocol = "les"
 	}
