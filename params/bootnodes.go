@@ -76,6 +76,12 @@ var DiscoveryV5Bootnodes = []string{
 	"enode://289948b84e6b7bceb6e85ffe779563174660151abbf449c8309b3fbf96202e093c176355b2b7450366c8078d323615fec8830f56f1dd5eb2f25124320b9d1f7b@[2409:8728:4ea:23:8474:d7ff:fef2:687a]:10104",
 }
 
+// YoloV1Bootnodes are the enode URLs of the P2P bootstrap nodes running on the
+// YOLOv1 ephemeral test network.
+var YoloV1Bootnodes = []string{
+	"enode://9e1096aa59862a6f164994cb5cb16f5124d6c992cdbf4535ff7dea43ea1512afe5448dca9df1b7ab0726129603f1a3336b631e4d7a1a44c94daddd03241587f9@35.178.210.161:30303",
+}
+
 const dnsPrefix = "enrtree://AKA3AM6LPBYEUDMVNU3BSVQJ5AD45Y7YPOHJLEF6W26QOE4VTUDPE@"
 
 // KnownDNSNetwork returns the address of a public DNS-based node list for the given

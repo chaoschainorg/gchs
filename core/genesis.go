@@ -241,6 +241,8 @@ func (g *Genesis) configOrDefault(ghash common.Hash) *params.ChainConfig {
 		return params.RinkebyChainConfig
 	case ghash == params.GoerliGenesisHash:
 		return params.GoerliChainConfig
+	case ghash == params.YoloV1GenesisHash:
+		return params.YoloV1ChainConfig
 	default:
 		return params.AllEthashProtocolChanges
 	}
