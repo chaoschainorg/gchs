@@ -17,9 +17,13 @@
 package nat
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"net"
+	"os/exec"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -31,9 +35,10 @@ import (
 const soapRequestTimeout = 3 * time.Second
 
 type upnp struct {
-	dev     *goupnp.RootDevice
-	service string
-	client  upnpClient
+	dev       *goupnp.RootDevice
+	service   string
+	client    upnpClient
+	miniupnpc upnpClient
 }
 
 type upnpClient interface {
@@ -43,11 +48,114 @@ type upnpClient interface {
 	GetNATRSIPStatus() (sip bool, nat bool, err error)
 }
 
+type miniupnpClient struct {
+	miniupnpc string
+	lanIP     string
+	wanIP     string
+}
+
+func (mc *miniupnpClient) Init() {
+	upnpc, er := exec.LookPath("upnpc")
+	if er != nil {
+		return
+	}
+	mc.miniupnpc = upnpc
+
+	mc.GetExternalIPAddress()
+}
+
+func (mc *miniupnpClient) GetExternalIPAddress() (ExternalIPAddress string, err error) {
+	if mc.miniupnpc == "" {
+		err = errors.New("not found miniupnpc")
+		return
+	}
+
+	cmd := exec.Command(mc.miniupnpc, "-s")
+	var out bytes.Buffer
+	cmd.Stdout = &out
+
+	err = cmd.Run()
+	if err != nil {
+		return
+	}
+
+	re := regexp.MustCompile(`(?s)ExternalIPAddress = ([\d|\.]+)`)
+	result := re.FindStringSubmatch(out.String())
+	if len(result) == 2 {
+		ExternalIPAddress = result[1]
+		mc.wanIP = ExternalIPAddress
+	} else {
+		err = errors.New("not found external IP address")
+	}
+
+	re = regexp.MustCompile(`(?s)Local LAN ip address : ([\d|\.]+)`)
+	result = re.FindStringSubmatch(out.String())
+	if len(result) == 2 {
+		mc.lanIP = result[1]
+	} else {
+		err = errors.New("not found local LAN ip address")
+	}
+
+	return
+}
+
+func (mc *miniupnpClient) AddPortMapping(dummy1 string, extport uint16, protocol string,
+	intport uint16, ip string, dummy2 bool, desc string, lifetimeS uint32) (err error) {
+	if mc.miniupnpc == "" {
+		err = errors.New("not found miniupnpc")
+		return
+	}
+
+	extportString := strconv.Itoa(int(extport))
+	intportString := strconv.Itoa(int(intport))
+	lifetimeString := strconv.Itoa(int(lifetimeS))
+
+	if ip == "" {
+		ip = mc.lanIP
+	}
+
+	cmd := exec.Command(mc.miniupnpc, "-e", desc, "-a", ip,
+		intportString, extportString, protocol, lifetimeString)
+	var out bytes.Buffer
+	cmd.Stdout = &out
+
+	err = cmd.Run()
+	if err != nil {
+		fmt.Println(err.Error())
+		return
+	}
+
+	re := regexp.MustCompile(`(?s)external ([\d|\.]+):(\d+) (UDP|TCP) is redirected to internal ([\d|\.]+):(\d+) \(duration=(\d+)\)`)
+	result := re.FindStringSubmatch(out.String())
+	if len(result) != 7 {
+		err = errors.New(out.String())
+	}
+
+	return
+}
+
+func (mc *miniupnpClient) DeletePortMapping(string, uint16, string) (err error) {
+	return
+}
+
+func (mc *miniupnpClient) GetNATRSIPStatus() (sip bool, nat bool, err error) {
+	if mc.wanIP != "" {
+		nat = true
+	}
+	return
+}
+
 func (n *upnp) ExternalIP() (addr net.IP, err error) {
-	ipString, err := n.client.GetExternalIPAddress()
+	ipString := ""
+	if n.client == nil {
+		ipString, err = n.miniupnpc.GetExternalIPAddress()
+	} else {
+		ipString, err = n.client.GetExternalIPAddress()
+	}
 	if err != nil {
 		return nil, err
 	}
+
 	ip := net.ParseIP(ipString)
 	if ip == nil {
 		return nil, errors.New("bad IP in response")
@@ -56,13 +164,19 @@ func (n *upnp) ExternalIP() (addr net.IP, err error) {
 }
 
 func (n *upnp) AddMapping(protocol string, extport, intport int, desc string, lifetime time.Duration) error {
-	ip, err := n.internalAddress()
-	if err != nil {
-		return nil
-	}
 	protocol = strings.ToUpper(protocol)
 	lifetimeS := uint32(lifetime / time.Second)
 	n.DeleteMapping(protocol, extport, intport)
+
+	ip, err := n.internalAddress()
+	if err != nil {
+		return n.miniupnpc.AddPortMapping("", uint16(extport), protocol, uint16(intport), "", true, desc, lifetimeS)
+	}
+
+	if n.client == nil {
+		return nil
+	}
+
 	return n.client.AddPortMapping("", uint16(extport), protocol, uint16(intport), ip.String(), true, desc, lifetimeS)
 }
 
@@ -90,6 +204,9 @@ func (n *upnp) internalAddress() (net.IP, error) {
 }
 
 func (n *upnp) DeleteMapping(protocol string, extport, intport int) error {
+	if n.client == nil {
+		return nil
+	}
 	return n.client.DeletePortMapping("", uint16(extport), strings.ToUpper(protocol))
 }
 
@@ -101,13 +218,16 @@ func (n *upnp) String() string {
 // and returns the first one it can find on the local network.
 func discoverUPnP() Interface {
 	found := make(chan *upnp, 2)
+	upnpc := &miniupnpClient{}
+	upnpc.Init()
+
 	// IGDv1
 	go discover(found, internetgateway1.URN_WANConnectionDevice_1, func(dev *goupnp.RootDevice, sc goupnp.ServiceClient) *upnp {
 		switch sc.Service.ServiceType {
 		case internetgateway1.URN_WANIPConnection_1:
-			return &upnp{dev, "IGDv1-IP1", &internetgateway1.WANIPConnection1{ServiceClient: sc}}
+			return &upnp{dev, "IGDv1-IP1", &internetgateway1.WANIPConnection1{ServiceClient: sc}, upnpc}
 		case internetgateway1.URN_WANPPPConnection_1:
-			return &upnp{dev, "IGDv1-PPP1", &internetgateway1.WANPPPConnection1{ServiceClient: sc}}
+			return &upnp{dev, "IGDv1-PPP1", &internetgateway1.WANPPPConnection1{ServiceClient: sc}, upnpc}
 		}
 		return nil
 	})
@@ -115,11 +235,11 @@ func discoverUPnP() Interface {
 	go discover(found, internetgateway2.URN_WANConnectionDevice_2, func(dev *goupnp.RootDevice, sc goupnp.ServiceClient) *upnp {
 		switch sc.Service.ServiceType {
 		case internetgateway2.URN_WANIPConnection_1:
-			return &upnp{dev, "IGDv2-IP1", &internetgateway2.WANIPConnection1{ServiceClient: sc}}
+			return &upnp{dev, "IGDv2-IP1", &internetgateway2.WANIPConnection1{ServiceClient: sc}, upnpc}
 		case internetgateway2.URN_WANIPConnection_2:
-			return &upnp{dev, "IGDv2-IP2", &internetgateway2.WANIPConnection2{ServiceClient: sc}}
+			return &upnp{dev, "IGDv2-IP2", &internetgateway2.WANIPConnection2{ServiceClient: sc}, upnpc}
 		case internetgateway2.URN_WANPPPConnection_1:
-			return &upnp{dev, "IGDv2-PPP1", &internetgateway2.WANPPPConnection1{ServiceClient: sc}}
+			return &upnp{dev, "IGDv2-PPP1", &internetgateway2.WANPPPConnection1{ServiceClient: sc}, upnpc}
 		}
 		return nil
 	})
@@ -128,7 +248,7 @@ func discoverUPnP() Interface {
 			return c
 		}
 	}
-	return nil
+	return &upnp{nil, "", nil, upnpc}
 }
 
 // finds devices matching the given target and calls matcher for all
