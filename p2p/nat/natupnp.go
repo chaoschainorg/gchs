@@ -121,7 +121,6 @@ func (mc *miniupnpClient) AddPortMapping(dummy1 string, extport uint16, protocol
 
 	err = cmd.Run()
 	if err != nil {
-		fmt.Println(err.Error())
 		return
 	}
 
