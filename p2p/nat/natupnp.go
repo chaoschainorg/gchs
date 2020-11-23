@@ -180,6 +180,14 @@ func (n *upnp) AddMapping(protocol string, extport, intport int, desc string, li
 }
 
 func (n *upnp) internalAddress() (net.IP, error) {
+	if n.dev == nil {
+		mc := n.miniupnpc.(*miniupnpClient)
+		ip := net.ParseIP(mc.lanIP)
+		if ip == nil {
+			return nil, errors.New("could not find local address")
+		}
+		return ip, nil
+	}
 	devaddr, err := net.ResolveUDPAddr("udp4", n.dev.URLBase.Host)
 	if err != nil {
 		return nil, err
