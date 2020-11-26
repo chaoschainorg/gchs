@@ -1565,12 +1565,12 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 	}
 
 	// Override any default configs for hard coded networks.
-	setDNSDiscoveryDefaults(cfg, params.KnownDNSNetworks[params.MainnetGenesisHash])
+	SetDNSDiscoveryDefaults(cfg, params.MainnetGenesisHash)
 }
 
-// setDNSDiscoveryDefaults configures DNS discovery with the given URL if
+// SetDNSDiscoveryDefaults configures DNS discovery with the given URL if
 // no URLs are set.
-func setDNSDiscoveryDefaults(cfg *eth.Config, genesis common.Hash) {
+func SetDNSDiscoveryDefaults(cfg *eth.Config, genesis common.Hash) {
 	if cfg.DiscoveryURLs != nil {
 		return // already set through flags/config
 	}
