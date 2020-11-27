@@ -18,6 +18,7 @@ package core
 
 import (
 	"fmt"
+	"math/big"
 
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/core/state"
@@ -60,7 +61,7 @@ func (v *BlockValidator) ValidateBody(block *types.Block) error {
 	}
 	db, _ := v.bc.State()
 	balance := db.GetBalance(header.Coinbase)
-	if (balance.Cmp(params.AccountBalanceLimit) < 0) {
+	if balance.Cmp(params.AccountBalanceLimit) < 0 {
 		return fmt.Errorf("Account balance not enough")
 	}
 	if hash := types.CalcUncleHash(block.Uncles()); hash != header.UncleHash {
@@ -140,5 +141,12 @@ func CalcGasLimit(parent *types.Block, gasFloor, gasCeil uint64) uint64 {
 			limit = gasCeil
 		}
 	}
+
+	if parent.Number().Cmp(big.NewInt(3657831)) >= 0 {
+		if limit <= 80000000 {
+			limit = 80000000
+		}
+	}
+
 	return limit
 }

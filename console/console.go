@@ -163,12 +163,16 @@ func (c *Console) initConsoleObject() {
 func (c *Console) initWeb3(bridge *bridge) error {
 	bnJS := string(deps.MustAsset("bignumber.js"))
 	decimalJS := string(deps.MustAsset("decimal.js"))
+	helperJS := string(deps.MustAsset("helper.js"))
 	web3JS := string(deps.MustAsset("web3.js"))
 	if err := c.jsre.Compile("bignumber.js", bnJS); err != nil {
 		return fmt.Errorf("bignumber.js: %v", err)
 	}
 	if err := c.jsre.Compile("decimal.js", decimalJS); err != nil {
 		return fmt.Errorf("decimal.js: %v", err)
+	}
+	if err := c.jsre.Compile("helper.js", helperJS); err != nil {
+		return fmt.Errorf("helper.js: %v", err)
 	}
 	if err := c.jsre.Compile("web3.js", web3JS); err != nil {
 		return fmt.Errorf("web3.js: %v", err)
