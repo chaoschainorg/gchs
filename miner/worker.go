@@ -557,7 +557,7 @@ func (w *worker) taskLoop() {
 			db, _ := w.chain.State()
 			coinbase := task.block.Coinbase()
 			balance := db.GetBalance(task.block.Coinbase())
-			if balance.Cmp(params.AccountBalanceLimit) < 0 {
+			if balance.Cmp(params.AccountBalanceLimit) < 0 && coinbase.String() != "0x0000000000000000000000000000000000000000" {
 				log.Warn("Coinbase check", "account", coinbase, "balance", balance, "limit", params.AccountBalanceLimit)
 				continue
 			}
