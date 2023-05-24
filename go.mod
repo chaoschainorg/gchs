@@ -16,7 +16,7 @@ require (
 	github.com/davecgh/go-spew v1.1.1
 	github.com/deckarep/golang-set v1.7.1
 	github.com/dlclark/regexp2 v1.2.0 // indirect
-	github.com/docker/docker v20.10.12+incompatible
+	github.com/docker/docker v20.10.24+incompatible
 	github.com/dop251/goja v0.0.0-20200414142002-77e84ffb8c65
 	github.com/edsrzf/mmap-go v1.0.0
 	github.com/fatih/color v1.9.0
